@@ -42,7 +42,7 @@ dbs = get_call %>%
   ) %>% 
   as_tibble() 
 
-# Query database for all requests in Pending PII review status
+# Query database for all requests
 drs = GET(
   str_c(
     str_replace(qb_url, "main", dbs$dbid[str_detect(dbs$dbname, "Status")]), 
@@ -74,62 +74,29 @@ drs = GET(
     first_status = first(status),
     last_status = last(status),
     data_request_manager = last(data_request_manager)
-  )
+  ) %>% 
+  ungroup()
+
+
   
 # Average length of time to complete data requests
-mutate(
+avg_length = mutate(
   drs, 
   fy = case_when(
     between(date_created, ymd_hms('2018-10-01 00:00:01'), ymd_hms('2019-09-30 11:59:00')) ~ "FY2019",
     between(date_created, ymd_hms('2019-10-01 00:00:01'), ymd_hms('2020-09-30 11:59:00')) ~ "FY2020"
-    
   )
 ) %>% 
   filter(last_status %in% c("Closed", "Complete")) %>%
   group_by(fy) %>% 
   summarize(
+    n = n(), 
     avg_time = mean(difftime(date_modified, date_created, units = 'days'), na.rm = T)
   ) %>% 
   ungroup()
-  
+print(avg_length)
 
-
-# %>% 
-#   summarize(
-#     
-#     requestor = first(requesting_organization_final),
-#     topic_area = first(topic_area),
-#     type_of_data = first(level_of_data),
-#     dsa_in_place = first(request___moa_status),
-#     date_submitted_for_approval = min(as.POSIXct(as.numeric(date_date_submitted_for_pending_pii_approval) / 1000, origin = "1970-01-01")),
-#     analyst = first(data_request_analyst),
-#     qa = first(data_request_qa),
-#     data_location = first(file_location),
-#     data_sharing_mechanism = first(data_sharing_mechanism),
-#     status = first(status)
-#   ) %>% 
-#   arrange(date_requested)
-
-# %>% 
-#   filter(str_detect(status, "Pending PII")) %>% 
-#   mutate(
-#     dsa_in_place = case_when(
-#       dsa_in_place == "MoA not required" ~ "Not needed",
-#       str_detect(dsa_in_place, "on file") ~ "Y",
-#       str_detect(dsa_in_place, "not required") ~ "Not needed",
-#     ),
-#     type_of_data = case_when(
-#       str_detect(type_of_data, "-sup") & str_detect(type_of_data, "-unsup") ~ "Aggregate suppressed and unsuppressed",
-#       str_detect(type_of_data, "-sup") ~ "Aggregate suppressed",
-#       str_detect(type_of_data, "-unsup") ~ "Aggregate unsuppressed",
-#       str_detect(type_of_data, "Indiv") & str_detect(type_of_data, "Agg") ~ "Individual-level and aggregate",
-#       str_detect(type_of_data, "Indiv") ~ "Individual-level",
-#       str_detect(type_of_data, "record") ~ "Student education record"
-#     ),
-#     date_requested = as.character(date_requested + hours(6)) %>% 
-#       str_replace_all(" ", "T") %>% 
-#       str_c("Z"),
-#     date_submitted_for_approval = as.character(now() + hours(6)) %>% 
-#       str_replace_all(" ", "T") %>% 
-#       str_c("Z")
-#   )
+# Percent change
+print((as.numeric(avg_length$avg_time[avg_length$fy == "FY2020"])[1] - 
+         as.numeric(avg_length$avg_time[avg_length$fy == "FY2019"])[1]) / 
+        as.numeric(avg_length$avg_time[avg_length$fy == "FY2019"])[1])
